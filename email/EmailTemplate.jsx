@@ -1,12 +1,8 @@
-import { Html } from "@react-email/html";
-import { Section } from "@react-email/section";
-import { Text } from "@react-email/text";
-import { Row } from "@react-email/row";
-import { Column } from "@react-email/column";
+import { Html, Section, Text, Row, Column } from "jsx-email";
 import { format } from "date-fns";
 import { country, currencyMapping } from "@/lib/utils";
 
-const EmailTemplate = (data, lang) => {
+const EmailTemplate = ({ data, lang }) => {
 	return (
 		<Html>
 			<Text>
@@ -71,6 +67,7 @@ const EmailTemplate = (data, lang) => {
 					</Column>
 				</Row>
 				{data.map((item) => {
+					if (typeof item === "undefined") return;
 					return (
 						<Row style={{ borderBottom: "1px solid black" }} key={item.ean}>
 							<Column

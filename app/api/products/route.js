@@ -2,19 +2,47 @@ import { config } from "@/config/config";
 
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { setDataToDb } from "@/services/setProductsToDb";
-import { uncheckOldPriceDifferences } from "@/services/uncheckOldPriceDifferences";
-import { parseFeedData } from "@/services/parseFeedData";
-import { getProducts } from "@/services/getFeedProducts";
+import prisma from "@/db";
+import { createWriteStream, createReadStream } from "fs";
+import { createInterface } from "readline";
+import convert from "xml-js";
+import axios from "axios";
+import { pipeline } from "stream";
 
+import { promisify } from "util";
+import xml2js from "xml2js";
+const parserXML = new xml2js.Parser({ attrkey: "ATTR" });
+// https://lazienka-rea.com.pl/feed/generate/full_offer
 export async function GET() {
-  const data = await getProducts(config.source, config.type.catalog);
-  await parseFeedData(data)
-    .then((data) => setDataToDb(data))
-    .catch((e) => console.log(e));
-  for (const url of config.source) {
-    await uncheckOldPriceDifferences(url.lang);
+  const p = promisify(pipeline);
+  try {
+    const request = await axios.get("https://files.lazienka-rea.com.pl/feed-small.xml", {
+      responseType: "stream",
+    });
+    await p(request.data, createWriteStream(`${process.cwd().replace(/\\/g, "/")}/public/temp/feed.xml`, { flags: "w" }));
+    console.log("Download successful!");
+  } catch (error) {
+    console.error("Download failed.", error);
   }
 
-  return NextResponse.json({ message: "Zaktualizowano" });
+  // Before inserting, remove category names and product titles to avoid duplicates
+  await prisma.categoryName.deleteMany({});
+
+  // Strings are too short for gigantic XMLs
+  let data = [];
+
+  const fileStream = createReadStream(`${process.cwd().replace(/\\/g, "/")}/public/temp/feed.xml`);
+
+  const lineReader = createInterface({
+    input: fileStream,
+    crlfDelay: Infinity,
+  });
+
+  for await (const line of lineReader) {
+    data.push(line.trim());
+  }
+
+  console.log(data);
+
+  return NextResponse.json({ message: "Zaktualizowano produkty." });
 }

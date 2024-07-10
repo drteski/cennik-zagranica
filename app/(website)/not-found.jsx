@@ -3,7 +3,7 @@ import { country } from "@/lib/utils";
 import Link from "next/link";
 
 const NotFound = () => {
-	const availLangs = [...new Set(config.source.map((src) => src.lang))];
+	const availLangs = [...new Set(config.source)];
 	return (
 		<div className="h-screen flex flex-col items-center justify-center">
 			<h1 className="text-7xl font-bold mb-4">404</h1>

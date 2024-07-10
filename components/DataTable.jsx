@@ -30,7 +30,7 @@ import {
 import { currencyMapping } from "@/lib/utils";
 import { useState } from "react";
 
-export function DataTable({ data, lang }) {
+export function DataTable({ data, brands, lang }) {
 	const [sorting, setSorting] = useState([]);
 	const [columnFilters, setColumnFilters] = useState([]);
 	const [columnVisibility, setColumnVisibility] = useState({});
@@ -40,6 +40,9 @@ export function DataTable({ data, lang }) {
 	const columns = [
 		{
 			accessorKey: "variantId",
+			filterFn: (row, columnId, filterValue) => {
+				return row.getValue(columnId).toString().includes(filterValue);
+			},
 			header: ({ column }) => {
 				return (
 					<Button
@@ -88,6 +91,9 @@ export function DataTable({ data, lang }) {
 		},
 		{
 			accessorKey: "brand",
+			filterFn: (row, columnId, filterValue) => {
+				return row.getValue("brand") === filterValue;
+			},
 			header: ({ column }) => {
 				return (
 					<Button
@@ -131,16 +137,18 @@ export function DataTable({ data, lang }) {
 						currency: currencyMapping(lang).currency,
 					}).format(newPrice);
 
-					if (newPrice > oldPrice)
-						return {
-							price: price + " ▲",
-							style: "text-green-600",
-						};
-					if (newPrice < oldPrice)
-						return {
-							price: price + " ▼",
-							style: "text-red-600",
-						};
+					if (oldPrice !== 0) {
+						if (newPrice > oldPrice)
+							return {
+								price: price + " ▲",
+								style: "text-green-600",
+							};
+						if (newPrice < oldPrice)
+							return {
+								price: price + " ▼",
+								style: "text-red-600",
+							};
+					}
 					return { price: price, style: "text-black pr-[16px]" };
 				};
 
@@ -172,56 +180,87 @@ export function DataTable({ data, lang }) {
 		},
 		initialState: {
 			pagination: {
-				pageSize: 20,
+				pageSize: 200,
 			},
 		},
 	});
 
 	return (
-		<div className="w-full">
-			<div className="flex items-center py-4">
+		<div className="w-full relative">
+			<div className="flex items-center py-4 px-10 fixed top-0 left-0 right-0 bg-neutral-100 z-10">
 				<Input
 					placeholder="Filter ID..."
 					value={table.getColumn("variantId")?.getFilterValue() ?? ""}
 					onChange={(event) =>
 						table.getColumn("variantId")?.setFilterValue(event.target.value)
 					}
-					className="max-w-sm mr-4"
+					className="max-w-sm mr-4 bg-white"
 				/>
 
 				<Input
 					placeholder="Filter SKU..."
 					value={table.getColumn("sku")?.getFilterValue() ?? ""}
 					onChange={(event) => table.getColumn("sku")?.setFilterValue(event.target.value)}
-					className="max-w-sm mr-4"
+					className="max-w-sm mr-4 bg-white"
 				/>
 
 				<Input
 					placeholder="Filter EAN..."
 					value={table.getColumn("ean")?.getFilterValue() ?? ""}
 					onChange={(event) => table.getColumn("ean")?.setFilterValue(event.target.value)}
-					className="max-w-sm mr-4"
+					className="max-w-sm mr-4 bg-white"
 				/>
-				<Input
-					placeholder="Filter Brand..."
-					value={table.getColumn("brand")?.getFilterValue() ?? ""}
-					onChange={(event) =>
-						table.getColumn("brand")?.setFilterValue(event.target.value)
-					}
-					className="max-w-sm mr-4"
-				/>
+				<DropdownMenu className>
+					<DropdownMenuTrigger asChild>
+						<Button variant="outline" className="ml-auto mr-4 bg-white">
+							{typeof table.getColumn("brand")?.getFilterValue() === "undefined"
+								? "Brands"
+								: table.getColumn("brand")?.getFilterValue()}{" "}
+							<ChevronDownIcon className="ml-2 h-4 w-4" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent>
+						<DropdownMenuCheckboxItem
+							checked={
+								typeof table.getColumn("brand")?.getFilterValue() === "undefined"
+							}
+							onCheckedChange={() => {
+								table.getColumn("brand")?.setFilterValue("");
+							}}
+						>
+							All
+						</DropdownMenuCheckboxItem>
+						{brands.map((brand, key) => {
+							return (
+								<DropdownMenuCheckboxItem
+									key={key}
+									className="uppercase"
+									checked={
+										table.getColumn("brand")?.getFilterValue() === brand.name
+									}
+									onCheckedChange={() => {
+										table.getColumn("brand")?.setFilterValue(brand.name);
+									}}
+								>
+									{brand.name}
+								</DropdownMenuCheckboxItem>
+							);
+						})}
+					</DropdownMenuContent>
+				</DropdownMenu>
+
 				<Input
 					placeholder="Filter Title..."
 					value={table.getColumn("name")?.getFilterValue() ?? ""}
 					onChange={(event) =>
 						table.getColumn("name")?.setFilterValue(event.target.value)
 					}
-					className="max-w-sm mr-4"
+					className="max-w-sm mr-4 bg-white"
 				/>
 
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
-						<Button variant="outline" className="ml-auto">
+						<Button variant="outline" className="ml-auto bg-white">
 							Columns <ChevronDownIcon className="ml-2 h-4 w-4" />
 						</Button>
 					</DropdownMenuTrigger>
@@ -272,6 +311,7 @@ export function DataTable({ data, lang }) {
 								<TableRow
 									key={row.id}
 									data-state={row.getIsSelected() && "selected"}
+									className="even:bg-neutral-200"
 								>
 									{row.getVisibleCells().map((cell) => (
 										<TableCell key={cell.id}>
@@ -293,40 +333,36 @@ export function DataTable({ data, lang }) {
 					</TableBody>
 				</Table>
 			</div>
-			<div className="flex items-center justify-end space-x-2 py-4">
-				<div className="flex-1 text-sm text-muted-foreground">
-					{table.getFilteredRowModel().rows.length} found.
-				</div>
-				<div className="space-x-2">
+			<div className="flex flex-col items-center gap-2 fixed bottom-0 left-0 right-0 bg-neutral-100 justify-end space-x-2 py-4 px-8">
+				<div className="flex justify-between items-center text-sm text-muted-foreground w-full">
+					<span>{table.getFilteredRowModel().rows.length} found.</span>
 					<div>
 						Page {currentPage} of {table.getPageCount()}
 					</div>
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => {
-							setCurrentPage((prevState) => {
-								return prevState - 1;
-							});
-							table.previousPage();
-						}}
-						disabled={!table.getCanPreviousPage()}
-					>
-						Previous
-					</Button>
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => {
-							setCurrentPage((prevState) => {
-								return prevState + 1;
-							});
-							table.nextPage();
-						}}
-						disabled={!table.getCanNextPage()}
-					>
-						Next
-					</Button>
+				</div>
+				<div>
+					<div className="flex flex-wrap gap-1 mb-2">
+						{Array.from(Array(table.getPageCount()).keys()).map((pageNumber) => {
+							return (
+								<Button
+									key={pageNumber + 1}
+									variant="outline"
+									size="sm"
+									className={
+										pageNumber + 1 === currentPage
+											? "bg-neutral-950 text-white w-8 p-0"
+											: "bg-white w-8 p-0"
+									}
+									onClick={() => {
+										table.setPageIndex(pageNumber);
+										setCurrentPage(pageNumber + 1);
+									}}
+								>
+									{pageNumber + 1}
+								</Button>
+							);
+						})}
+					</div>
 				</div>
 			</div>
 		</div>
